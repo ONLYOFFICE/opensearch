@@ -1,3 +1,5 @@
-FROM docker.elastic.co/elasticsearch/elasticsearch:7.13.1
+ARG DOCKER_TAG
 
-RUN bin/elasticsearch-plugin install --batch ingest-attachment
+FROM docker.elastic.co/elasticsearch/elasticsearch:${DOCKER_TAG}
+
+RUN bin/elasticsearch-plugin install -s -b ingest-attachment
