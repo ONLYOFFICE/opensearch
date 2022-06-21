@@ -1,3 +1,38 @@
 #!/bin/bash
 export DOCKER_TAG=${DOCKER_TAG}
-docker build --build-arg DOCKER_TAG=${DOCKER_TAG} -t ${IMAGE_NAME} .
+ELASTICSEARCH_PWD="dockerfiles-${DOCKER_TAG#v}/elasticsearch/"
+
+wget https://github.com/elastic/dockerfiles/archive/refs/tags/${DOCKER_TAG}.tar.gz
+tar xvzf ${DOCKER_TAG}.tar.gz
+
+sed -i "s/centos:8/centos:7/" -i ${ELASTICSEARCH_PWD}/Dockerfile
+
+sed '/AS builder/a \
+ARG LOG4J_VER=2.17.2 \
+ARG LOG4J_BIN=apache-log4j-${LOG4J_VER}-bin \
+ARG LOG4J_ARCH=${LOG4J_BIN}.tar.gz \
+ARG LOG4J_DIR=./log4j \
+ARG ELK_DIR=/usr/share/elasticsearch \
+ARG ELK_LIB_DIR=lib \
+ARG ELK_MODULE_DIR=modules' -i ${ELASTICSEARCH_PWD}/Dockerfile
+
+sed 's!RUN tar .*!  \
+RUN yum install -y zip \&\&\\  \
+    tar zxf /opt/elasticsearch.tar.gz --strip-components=1 \&\&\\  \
+    rm -v ${ELK_LIB_DIR}/log4j-*.jar ${ELK_MODULE_DIR}/*/log4j-*.jar \&\&\\  \
+    curl -O https://dlcdn.apache.org/logging/log4j/${LOG4J_VER}/${LOG4J_ARCH}\&\&\\  \
+    mkdir ${LOG4J_DIR} \&\&\\ \
+    tar -xf ${LOG4J_ARCH} -C ${LOG4J_DIR} \&\&\\  \
+    cp -v ${LOG4J_DIR}/${LOG4J_BIN}/log4j-api-${LOG4J_VER}.jar ${ELK_LIB_DIR} \&\&\\  \
+    cp -v ${LOG4J_DIR}/${LOG4J_BIN}/log4j-core-${LOG4J_VER}.jar ${ELK_LIB_DIR} \&\&\\  \
+    cp -v ${LOG4J_DIR}/${LOG4J_BIN}/log4j-1.2-api-${LOG4J_VER}.jar ${ELK_MODULE_DIR}/x-pack-core \&\&\\  \
+    cp -v ${LOG4J_DIR}/${LOG4J_BIN}/log4j-slf4j-impl-${LOG4J_VER}.jar ${ELK_MODULE_DIR}/x-pack-identity-provider \&\&\\  \
+    cp -v ${LOG4J_DIR}/${LOG4J_BIN}/log4j-slf4j-impl-${LOG4J_VER}.jar ${ELK_MODULE_DIR}/x-pack-security \&\&\\  \
+    rm -vr ${LOG4J_ARCH} ${LOG4J_DIR} \&\&\\  \
+    zip -q -d ${ELK_LIB_DIR}/log4j-core-*.jar org/apache/logging/log4j/core/lookup/JndiLookup.class!' -i ${ELASTICSEARCH_PWD}/Dockerfile
+
+sed '/EXPOSE/i RUN bin/elasticsearch-plugin install -s -b ingest-attachment' -i ${ELASTICSEARCH_PWD}/Dockerfile
+
+docker build --build-arg -t ${IMAGE_NAME} ${ELASTICSEARCH_PWD}
+
+rm -vr dockerfiles-${DOCKER_TAG#v} ${DOCKER_TAG}.tar.gz
