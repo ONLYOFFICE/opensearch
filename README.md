@@ -1,1 +1,1 @@
-# ELASTICSEARCH for Onlyoffice
+# Opensearch for Onlyoffice
